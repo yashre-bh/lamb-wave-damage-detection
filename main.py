@@ -14,7 +14,7 @@ from torch.utils.data import Dataset, DataLoader
 # In[2]:
 
 
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available else "cpu")
+DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 EPOCHS = 2
 TIMESTEP = 2000
 LR = 3e-4
