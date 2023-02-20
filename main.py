@@ -1,24 +1,13 @@
-
-# In[1]:
-
-
 import torch
 import torch.nn as nn
-from torchvision.transforms import transforms
-# import numpy as np
 from tqdm import tqdm
-# import random
 from torch.utils.data import Dataset, DataLoader
 
-
-# In[2]:
-
-
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-EPOCHS = 2
+EPOCHS = 5
 TIMESTEP = 2000
 LR = 3e-4
-BATCH_SIZE = 5
+BATCH_SIZE = 10
 NUM_WORKERS = 2
 BETA1 = 0.5
 BETA2 = 0.999
@@ -28,29 +17,21 @@ NET1_CHK = "./net1.pth.tar"
 NET2_CHK = "./net2.pth.tar"
 NETCAT_CHK = "./netcat.pth.tar"
 
-
-# In[3]:
-
-
 class WaveDataset(Dataset):
     def __init__(self):
         super().__init__()
         self.input = []
         self.output = []
-        
-        for _ in range(20):
+
+        for _ in range(90):
             self.input.append(torch.randn(2, 1925))
             self.output.append(torch.rand(1))
-    
+
     def __len__(self):
         return len(self.input)
-    
+
     def __getitem__(self, index):
         return {'feature': self.input[index], 'target': self.output[index]}
-
-
-# In[4]:
-
 
 class Convolute(nn.Module):
     def __init__(self, in_filters, out_filters, kernel_size, dropout=0.0, maxpool=0):
@@ -72,11 +53,10 @@ class DNF(nn.Module):
         self.do_transpose = do_transpose
         self.dnf = nn.Sequential(nn.Linear(in_filters, out_filters))
         if do_flatten: self.dnf.append(nn.Flatten())
-    
+
     def forward(self, x):
         if self.do_transpose: x = torch.transpose(x, 2, 1)
         return self.dnf(x)
-
 
 class ANN(nn.Module):
     def __init__(self, in_filters, hidden_filters=50):
@@ -90,11 +70,6 @@ class ANN(nn.Module):
 
     def forward(self, x):
         return self.ann(x)
-    
-
-
-# In[5]:
-
 
 class Net(nn.Module):
     def __init__(self):
@@ -122,10 +97,6 @@ class NetCat(nn.Module):
     def forward(self, x):
         return self.ann1(x)
 
-
-# In[6]:
-
-
 def save_checkpoint(model, optim, filename="/checkpoint.path.tar"):
     print("=> Saving Checkpoint")
     checkpoint = {
@@ -141,10 +112,6 @@ def load_checkpoint(checkpoint_file, model, optim, lr):
     optim.load_state_dict(checkpoint["optim_state"])
     for group in optim.param_groups:
         group["lr"] = lr
-
-
-# In[7]:
-
 
 def train(data_loader, net1, net2, netcat, net1_scaler, net2_scaler, netcat_scaler, net1_optim, net2_optim, netcat_optim, loss_function):
     losses1 = []
@@ -177,7 +144,7 @@ def train(data_loader, net1, net2, netcat, net1_scaler, net2_scaler, netcat_scal
         net2_scaler.scale(loss2).backward(retain_graph=True)
         net2_scaler.step(net2_optim)
         net2_scaler.update()
-        
+
         net1.zero_grad()
         net1_scaler.scale(loss1).backward(retain_graph=True)
         net1_scaler.step(net1_optim)
@@ -190,7 +157,6 @@ def train(data_loader, net1, net2, netcat, net1_scaler, net2_scaler, netcat_scal
     loss_avg = torch.mean(torch.FloatTensor(losses1))
     print(f'Average Loss this epoch = {loss_avg}')
 
-
 def main():
     net1, net2, netcat = Net(), Net(), NetCat()
     net1, net2, netcat = net1.to(DEVICE), net2.to(DEVICE), netcat.to(DEVICE)
@@ -199,8 +165,7 @@ def main():
     net2_optim = torch.optim.Adam(net2.parameters(), lr=LR, betas=(BETA1, BETA2))
     netcat_optim = torch.optim.Adam(netcat.parameters(), lr=LR, betas=(BETA1, BETA2))
     loss_function = nn.BCEWithLogitsLoss()
-    
-    
+
     train_data = WaveDataset()
     train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
 
