@@ -24,7 +24,7 @@ class WaveDataset(Dataset):
         self.output = []
 
         for _ in range(90):
-            self.input.append(torch.randn(2, 1925))
+            self.input.append(torch.randn(2, 1925)+10)
             self.output.append(torch.rand(1))
 
     def __len__(self):
@@ -126,27 +126,36 @@ def train(data_loader, net1, net2, netcat, net1_scaler, net2_scaler, netcat_scal
     for data in data_loop:
         features, targets = data['feature'].to(DEVICE), data['target'].to(DEVICE)
 
-        with torch.cuda.amp.autocast():
-            dense1 = net1(features)
-            dense2 = net2(features)
-            dense = torch.cat([dense1, dense2], dim = 1)
-            preds = netcat(dense)
-            loss1 = loss_function(preds, targets)
-            loss2 = loss_function(preds, targets)
-            losscat = loss_function(preds, targets)
+        dense1 = net1(features)
+        dense2 = net2(features)
+        dense = torch.cat([dense1, dense2], dim = 1)
+        preds = netcat(dense)
+        losscat = loss_function(preds, targets)
 
         netcat.zero_grad()
-        netcat_scaler.scale(losscat).backward(retain_graph=True)
+        netcat_scaler.scale(losscat).backward()
         netcat_scaler.step(netcat_optim)
         netcat_scaler.update()
 
+        dense1 = net1(features)
+        dense2 = net2(features)
+        dense = torch.cat([dense1, dense2], dim = 1)
+        preds = netcat(dense)
+        loss2 = loss_function(preds, targets)
+
         net2.zero_grad()
-        net2_scaler.scale(loss2).backward(retain_graph=True)
+        net2_scaler.scale(loss2).backward()
         net2_scaler.step(net2_optim)
         net2_scaler.update()
 
+        dense1 = net1(features)
+        dense2 = net2(features)
+        dense = torch.cat([dense1, dense2], dim = 1)
+        preds = netcat(dense)
+        loss1 = loss_function(preds, targets)
+
         net1.zero_grad()
-        net1_scaler.scale(loss1).backward(retain_graph=True)
+        net1_scaler.scale(loss1).backward()
         net1_scaler.step(net1_optim)
         net1_scaler.update()
 
@@ -154,8 +163,12 @@ def train(data_loader, net1, net2, netcat, net1_scaler, net2_scaler, netcat_scal
         losses2.append(loss2.data)
         lossescat.append(losscat.data)
 
-    loss_avg = torch.mean(torch.FloatTensor(losses1))
-    print(f'Average Loss this epoch = {loss_avg}')
+    loss_avg1 = torch.mean(torch.FloatTensor(losses1))
+    loss_avg2 = torch.mean(torch.FloatTensor(losses2))
+    loss_avgcat = torch.mean(torch.FloatTensor(lossescat))
+    print(f'Average Loss1 this epoch = {loss_avg1}')
+    print(f'Average Loss2 this epoch = {loss_avg2}')
+    print(f'Average LossCat this epoch = {loss_avgcat}')
 
 def main():
     net1, net2, netcat = Net(), Net(), NetCat()
@@ -164,7 +177,7 @@ def main():
     net1_optim = torch.optim.Adam(net1.parameters(), lr=LR, betas=(BETA1, BETA2))
     net2_optim = torch.optim.Adam(net2.parameters(), lr=LR, betas=(BETA1, BETA2))
     netcat_optim = torch.optim.Adam(netcat.parameters(), lr=LR, betas=(BETA1, BETA2))
-    loss_function = nn.BCEWithLogitsLoss()
+    loss_function = nn.MSELoss()
 
     train_data = WaveDataset()
     train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
