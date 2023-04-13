@@ -15,6 +15,7 @@ BETA1 = 0.5
 BETA2 = 0.999
 SAVE_MODEL = True
 LOAD_MODEL = True
+LOAD_INITIAL_MODEL = True
 NET1_CHK = "./net1.pth.tar"
 NET2_CHK = "./net2.pth.tar"
 NETCAT_CHK = "./netcat.pth.tar"
@@ -213,18 +214,23 @@ def main():
     train_data = WaveDataset()
     train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
 
+    if LOAD_INITIAL_MODEL:
+        load_checkpoint(NET1_CHK, net1, net1_optim, LR)
+        load_checkpoint(NET2_CHK, net2, net2_optim, LR)
+        load_checkpoint(NETCAT_CHK, netcat, netcat_optim, LR)
+
+    best_loss_avgs = [10000, 10000, 10000]
     for epoch in range(EPOCHS):
         print(f'Epoch count = {epoch+1}')
-        best_loss_avgs = [10000, 10000, 10000]
         loss_avg1, loss_avg2, loss_avgcat = train(train_loader, net1, net2, netcat, net1_scaler, net2_scaler, netcat_scaler, net1_optim, net2_optim, netcat_optim, loss_function)
 
-        if(loss_avg1 < best_loss_avgs[0]) and SAVE_MODEL:
+        if loss_avg1 < best_loss_avgs[0] and SAVE_MODEL:
             best_loss_avgs[0] = loss_avg1
             save_checkpoint(net1, net1_optim, filename=NET1_CHK)
-        if(loss_avg2 < best_loss_avgs[1]) and SAVE_MODEL:
+        if loss_avg2 < best_loss_avgs[1] and SAVE_MODEL:
             best_loss_avgs[1] = loss_avg2
             save_checkpoint(net2, net2_optim, filename=NET2_CHK)
-        if(loss_avgcat < best_loss_avgs[2]) and SAVE_MODEL:
+        if loss_avgcat < best_loss_avgs[2] and SAVE_MODEL:
             best_loss_avgs[2] = loss_avgcat
             save_checkpoint(netcat, netcat_optim, filename=NETCAT_CHK)
 
