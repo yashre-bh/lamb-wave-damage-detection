@@ -7,7 +7,7 @@ from torch.nn.functional import normalize
 torch.manual_seed(1234)
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-EPOCHS = 20
+EPOCHS = 50
 LR = 3e-4
 BATCH_SIZE = 13
 NUM_WORKERS = 2
@@ -183,6 +183,7 @@ def train(data_loader, net1, net2, netcat, net1_scaler, net2_scaler, netcat_scal
     print(f'Average Loss1 this epoch = {loss_avg1}')
     print(f'Average Loss2 this epoch = {loss_avg2}')
     print(f'Average LossCat this epoch = {loss_avgcat}')
+    return loss_avg1, loss_avg2, loss_avgcat
 
 def test(net1, net2, netcat, loss_function):
     test_data = WaveDataset(196, 260)
@@ -212,18 +213,25 @@ def main():
     train_data = WaveDataset()
     train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
 
-    if LOAD_MODEL:
-        load_checkpoint(NET1_CHK, net1, net1_optim, lr=LR)
-        load_checkpoint(NET2_CHK, net2, net2_optim, lr=LR)
-        load_checkpoint(NETCAT_CHK, netcat, netcat_optim, lr=LR)
-
     for epoch in range(EPOCHS):
         print(f'Epoch count = {epoch+1}')
-        train(train_loader, net1, net2, netcat, net1_scaler, net2_scaler, netcat_scaler, net1_optim, net2_optim, netcat_optim, loss_function)
-        if SAVE_MODEL and (epoch+1) % 5 == 0:
+        best_loss_avgs = [10000, 10000, 10000]
+        loss_avg1, loss_avg2, loss_avgcat = train(train_loader, net1, net2, netcat, net1_scaler, net2_scaler, netcat_scaler, net1_optim, net2_optim, netcat_optim, loss_function)
+
+        if(loss_avg1 < best_loss_avgs[0]) and SAVE_MODEL:
+            best_loss_avgs[0] = loss_avg1
             save_checkpoint(net1, net1_optim, filename=NET1_CHK)
+        if(loss_avg2 < best_loss_avgs[1]) and SAVE_MODEL:
+            best_loss_avgs[1] = loss_avg2
             save_checkpoint(net2, net2_optim, filename=NET2_CHK)
+        if(loss_avgcat < best_loss_avgs[2]) and SAVE_MODEL:
+            best_loss_avgs[2] = loss_avgcat
             save_checkpoint(netcat, netcat_optim, filename=NETCAT_CHK)
+
+        if LOAD_MODEL and (epoch+1)%10 == 0:
+            load_checkpoint(NET1_CHK, net1, net1_optim, lr=LR)
+            load_checkpoint(NET2_CHK, net2, net2_optim, lr=LR)
+            load_checkpoint(NETCAT_CHK, netcat, netcat_optim, lr=LR)
 
     if TEST: test(net1, net2, netcat, loss_function)
 
