@@ -1,31 +1,45 @@
+import numpy as np
 import torch
 import torch.nn as nn
 from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
+from torch.nn.functional import normalize
+torch.manual_seed(1234)
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-EPOCHS = 5
-TIMESTEP = 2000
+EPOCHS = 20
 LR = 3e-4
-BATCH_SIZE = 10
+BATCH_SIZE = 13
 NUM_WORKERS = 2
 BETA1 = 0.5
 BETA2 = 0.999
 SAVE_MODEL = True
-LOAD_MODEL = False
+LOAD_MODEL = True
 NET1_CHK = "./net1.pth.tar"
 NET2_CHK = "./net2.pth.tar"
 NETCAT_CHK = "./netcat.pth.tar"
+TEST = True
 
 class WaveDataset(Dataset):
-    def __init__(self):
+    def __init__(self, start=0, end=195):
         super().__init__()
         self.input = []
         self.output = []
 
-        for _ in range(90):
-            self.input.append(torch.randn(2, 1925)+10)
-            self.output.append(torch.rand(1))
+        simfilenames = np.loadtxt('training_labels.csv', dtype=str, delimiter=',', usecols=(0, 1))
+
+        print("=> Loading Data")
+
+        for simfilename in tqdm(simfilenames[start:end]):
+            simdata = np.load("./data/"+simfilename[0]+".npy", mmap_mode='r+')
+            simdata = np.delete(simdata, 2, 0)
+            simdata = np.delete(simdata, range(1925, 4096), 1)
+            simdatatorch = torch.from_numpy(simdata)
+            simdatatorchnorm = normalize(simdatatorch)
+            self.input.append(simdatatorchnorm)
+            randomdata = torch.rand(1)
+            if simfilename[1] == '0': self.output.append(randomdata if randomdata <= 0.5 else 1-randomdata)
+            else: self.output.append(randomdata if randomdata >= 0.5 else 1-randomdata)
 
     def __len__(self):
         return len(self.input)
@@ -124,7 +138,7 @@ def train(data_loader, net1, net2, netcat, net1_scaler, net2_scaler, netcat_scal
     netcat.zero_grad()
 
     for data in data_loop:
-        features, targets = data['feature'].to(DEVICE), data['target'].to(DEVICE)
+        features, targets = data['feature'].to(DEVICE, dtype=torch.float), data['target'].to(DEVICE, dtype=torch.float)
 
         dense1 = net1(features)
         dense2 = net2(features)
@@ -170,6 +184,22 @@ def train(data_loader, net1, net2, netcat, net1_scaler, net2_scaler, netcat_scal
     print(f'Average Loss2 this epoch = {loss_avg2}')
     print(f'Average LossCat this epoch = {loss_avgcat}')
 
+def test(net1, net2, netcat, loss_function):
+    test_data = WaveDataset(196, 260)
+    test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
+    RMSEs = []
+    for data in test_loader:
+        test_features, test_targets = data['feature'].to(DEVICE, dtype=torch.float), data['target'].to(DEVICE, dtype=torch.float)
+        dense1 = net1(test_features)
+        dense2 = net2(test_features)
+        dense = torch.cat([dense1, dense2], dim = 1)
+        preds = netcat(dense)
+        RMSE = loss_function(preds, test_targets)
+        print('Prediction =', round(preds[0].item()*90, 2), 'Actual =', round(test_targets[0].item()*90, 2))
+        RMSEs.append(RMSE.data)
+    RMSE_avg = torch.mean(torch.FloatTensor(RMSEs))
+    print(f'Average RMSE = {RMSE_avg}')
+
 def main():
     net1, net2, netcat = Net(), Net(), NetCat()
     net1, net2, netcat = net1.to(DEVICE), net2.to(DEVICE), netcat.to(DEVICE)
@@ -195,32 +225,7 @@ def main():
             save_checkpoint(net2, net2_optim, filename=NET2_CHK)
             save_checkpoint(netcat, netcat_optim, filename=NETCAT_CHK)
 
+    if TEST: test(net1, net2, netcat, loss_function)
+
 if __name__ == "__main__":
     main()
-
-
-# x1=torch.randn(1, 2, 1925)
-# head1 = []
-# head1.append(Convolute(2, 576, 11))
-# head1.append(Convolute(576, 484, 11, 0.3, 4))
-# head1.append(Convolute(484, 400, 5))
-# head1.append(Convolute(400, 324, 5, 0.2))
-# head1.append(DNF(324, 256, True, True))
-# head1.append(DNF(119808, 150))
-# for obj in head1: x1=obj(x1)
-# x1.shape
-
-# x2=torch.randn(1, 2, 1925)
-# head2 = []
-# head2.append(Convolute(2, 576, 11))
-# head2.append(Convolute(576, 484, 11, 0.3, 4))
-# head2.append(Convolute(484, 400, 5))
-# head2.append(Convolute(400, 324, 5, 0.2))
-# head2.append(DNF(324, 256, True, True))
-# head2.append(DNF(119808, 150))
-# for obj in head2: x2=obj(x2)
-# x2.shape
-
-# x = torch.cat([x1, x2], dim=1)
-# x.shape
-
