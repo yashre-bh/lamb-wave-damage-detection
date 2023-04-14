@@ -20,7 +20,7 @@ myPart.CircleByCenterPerimeter(center=(5.0, 0.5, 0.0), point1=(5.1, 0.5, 0.0))
 
 # Mesh part
 elemType1 = mesh.ElemType(elemCode=STANDARD, elemLibrary=STANDARD)
-elemType2 = mesh.ElemType(elemCode=STANDARD, elemLibrary=STANDARD, 
+elemType2 = mesh.ElemType(elemCode=STANDARD, elemLibrary=STANDARD,
                           secondOrderAccuracy=OFF, hourglassControl=DEFAULT)
 myPart.setElementType(regions=(myPart.cells,), elemTypes=(elemType1, elemType2))
 myPart.seedPart(size=0.1)
@@ -36,12 +36,12 @@ myAssembly.Set(name='Actuator', vertices=myAssembly.instances['Plate-1'].vertice
     coordinates=(1.0, 0.0, 0.0), numberOfVertices=1))
 myAssembly.Set(name='Receiver', vertices=myAssembly.instances['Plate-1'].vertices.getClosest(
     coordinates=(9.0, 0.0, 0.0), numberOfVertices=1))
-myModel.FieldOutputRequest(name='F-Output-1', 
+myModel.FieldOutputRequest(name='F-Output-1',
                             createStepName='Step-1', variables=('S', 'U', 'RF'))
 
 # Run simulations and record notch position
 notch_pos = []
-for i in range(21):
+for i in range(260):
     myPart.features['Point-2'].move((0.5, 0.0, 0.0))
     myModel.jobName = 'Sim-' + str(i)
     myJob = mdb.Job(name=myModel.jobName, model=myModel)
